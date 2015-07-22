@@ -125,7 +125,8 @@ vrrp_instance VI_1 {
 Save and close the file. Finally start keepalived on both Haproxy-1 and Haproxy-2 as follows:
 # /etc/init.d/keepalived start
 
-Make sure and change the priority under the vrrp_instance to 100 on the backup HAProxy server Haproxy-2. Other than that parameter the rest of the keepalived.conf file should be identical on both Haproxy-a and Haproxy-2. 
+Make sure and change the priority under the vrrp_instance to 100 on the backup HAProxy server Haproxy-2. 
+Other than that parameter the rest of the keepalived.conf file should be identical on both Haproxy-a and Haproxy-2. 
 
 Verify keepAlived:
 ==================
@@ -166,7 +167,8 @@ Lets see how to concatenate the certs which I bought from Digicert SSL provider 
 
 Creating a .pem with the Entire SSL Certificate:
 ================================================
-1. Log into your DigiCert Management Console and download your Intermediate (DigiCertCA.crt), Root (TrustedRoot.crt), and Primary Certificates (your_domain_name.crt).
+1. Log into your DigiCert Management Console and download your Intermediate (DigiCertCA.crt), 
+Root (TrustedRoot.crt), and Primary Certificates (your_domain_name.crt).
 
 2. Open a text editor (such as wordpad) and paste the entire body of each certificate into one text file in the following order:
         The Primary Certificate - your_domain_name.crt
@@ -192,8 +194,8 @@ HAProxy with SSL Termination:
 ============================
 Actually there are two ways to add SSL on Haproxy. 
 
-1. SSL Termination is the practice of terminating/decrypting an SSL connection at the load balancer, and sending unencrypted
-connections to the backend servers. This means the load balancer is responsible for decrypting an SSLconnection
+1. SSL Termination is the practice of terminating/decrypting an SSL connection at the load balancer, and sending 
+unencrypted connections to the backend servers. This means the load balancer is responsible for decrypting an SSLconnection
 
 
 2. SSL-Pass-Through, the SSL connection is terminated at each proxied server, distributing the CPU load across those
