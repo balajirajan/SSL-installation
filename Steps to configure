@@ -1,7 +1,7 @@
 Setting up of HaProxy +KeepAlived + SSL cert:
 =============================================
 
-Let's imagine a situation where, we want to handle few thousands of incoming QPS in server infrastructre.
+Let's imagine a situation where, we want to handle few thousand QPS in server infrastructre.
 There are two things in this 1. Receiving the queries 2. Processing and responding back to the queries. 
 Here we are going to discuss only about how to receive that much requests in a secured way and how to build a simple 
 yet scalable highly available load balancer using HAProxy and keepalived.  
