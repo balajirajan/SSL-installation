@@ -27,15 +27,15 @@ Active HaProxy(A) will have an IP address of 192.168.0.100 and Passive HaProxy(B
 192.168.0.200.
 
 KeepAlived is the service which uses VIP(192.168.0.250) to float between Active and Passive HaProxy.
-VIP is configured ob both haproxy servers but initially raised on active Haproxy. If Active failed, 
+VIP is configured on both haproxy servers but initially active on Haproxy-1. If Active failed, 
 then VIP will be floated/moved to Passive HaProxy with the help of KeepAlived service. Once the Active up again,
 the VIP will be failback to Active. The one has the higher priority number, will always trying to became 
 Active when its in online.
 
 
-To receive the traffice from haproxy, we use web servers that runs in Nginx as backend servers, thats 
+To receive the traffic from haproxy, we use web servers that runs in Nginx as backend servers, thats 
 webnode01(192.168.0.1) To Webnode10(192.168.0.10). The receiving traffic will be divided to all the webnodes 
-using round rabin algorithm which we configured in haproxy configuration.
+using round robin algorithm which we configured in haproxy configuration.
 
 Install and configure HaProxy servers:
 ======================================
@@ -62,12 +62,12 @@ balance roundrobin
 option httpchk HEAD /health.txt HTTP/1.0
 option httpclose
 option forwardfor
-server web1 192.168.0.1 cookie A check
-server web1 192.168.0.2 cookie B check
+server web1 192.168.0.1 check
+server web1 192.168.0.2 check
 .
 .
 .
-server webN 192.168.0.N cookie N check
+server webN 192.168.0.N check
 
 You can read about the different configuration options available on the HAProxy website. Requests are rotated among 
 the servers in the backend. Servers declared in the backend section also accept a weight parameter which specifies 
@@ -162,8 +162,9 @@ Please note that my domain_name.com uses the VIP which floats between two Haprox
 my domain_name.com is using the same ssl cert on two different servers, and it should work 100% when the haproxy-2 
 takes control from Haproxy-1.
 furhter to that, Haproxy does not recommend to decleare individual key, primary cert and root cert on Haproxy config
-file, which recommends a single my_domain_name.pem file where you should concatenate all the certs. 
-Lets see how to concatenate the certs which I bought from Digicert SSL provider (digicert.com) 
+file, which recommends a single my_domain_name.pem file where you should concatenate all the certs. SSL providers
+follow the same methodology to concatenate the certs.  
+Lets see how to concatenate the certs which I bought from my SSL provider(digicert.com). 
 
 Creating a .pem with the Entire SSL Certificate:
 ================================================
