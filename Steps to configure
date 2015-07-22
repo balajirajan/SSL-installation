@@ -1,0 +1,187 @@
+Setting up of HaProxy +KeepAlived + SSL cert:
+===============================================
+
+Let's imagine a situation where, we want to handle few thousands of incoming QPS in server infrastructre. There are two things in this 1. Receiving the queries 2. Processing and responding back to the queries. Here we are going to discuss only about how to receive that much requests in a secured way and how to build a simple yet scalable highly available load balancer using HAProxy and keepalived.  
+
+Technology Used:
+1.HaProxy
+2.Keepalived for IP failover
+3.VIP
+4.Nginx
+5.SSL Termination
+
+Servers Used:
+haproxy-1 => 192.168.0.100
+haproxy-2 => 192.168.0.200
+VIP => my_domain_name.com => points to 192.168.0.250 
+Web nodes => 192.168.0.1 to 192.168.0.10
+
+
+To avoid a single point of failure with one HAProxy, we have active and passive HAProxy setup and will be made highly available through the use of the VIP (floating IP address) as implemented by keepalived.  Active HaProxy(A) will have an IP address of 192.168.0.100 and Passive HaProxy(B) will have an IP address of 192.168.0.200.
+
+KeepAlived is the service which uses VIP(192.168.0.250) to float between Active and Passive HaProxy.  VIP is configured ob both haproxy servers but initially raised on active Haproxy. If Active failed, then VIP will be floated/moved to Passive HaProxy with the help of KeepAlived service. Once the Active up again, the VIP will be failback to Active. The one has the higher priority number, will always trying to became Active when its in online.
+
+
+To receive the traffice from haproxy, we use web servers that runs in Nginx as backend servers, thats webnode01(192.168.0.1) To Webnode10(192.168.0.10). The receiving traffic will be divided to all the webnodes using round rabin algorithm which we configured in haproxy configuration.
+
+
+Install and configure HaProxy servers:
+=======================================
+# yum -y install haproxy openssl-devel
+
+Configure HAProxy service on both Haproxy-1 and Haproxy-2 servers.
+
+First make a backup of the HAProxy config file for good measure:
+
+# cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
+
+Basically you will want to keep the global and default configuration sections intact. Remove or remark out the frontend and backend sections below them. The frontend/backend configuration is a more modern way to implement proxying, however I will perform the more traditional configuration and specify my options in one configuration section for each specific virtual IP address that I will proxy.
+
+# vim /etc/haproxy/haproxy.cfg
+
+listen webfarm 192.168.20.100:
+mode http
+balance roundrobin
+option httpchk HEAD /health.txt HTTP/1.0
+option httpclose
+option forwardfor
+server web1 192.168.0.1 cookie A check
+server web1 192.168.0.2 cookie B check
+.
+.
+.
+server webN 192.168.0.N cookie N check
+
+You can read about the different configuration options available on the HAProxy website. 
+Requests are rotated among the servers in the backend. Servers declared in the backend section also accept a weight parameter which specifies their relative weight. When balancing load, the Round Robin algorithm will respect that weight ratio.
+
+Also HAProxy will check if a web server is available with “option httpchk” by inspecting a file on the web server root named health.txt.  You will want to create this file on each web server. The “option httpclose” and “option forwardfor” are needed to allow the web server to log the actual IP address source for each client request, otherwise the HAProxy server IP will be logged because it is proxying the connection.
+
+Enable HAProxy and Keepalived to start automatically on system boot and start HAProxy:
+
+# chkconfig haproxy on
+# chkconfig keepalived on
+# service haproxy start
+
+
+Installing/configuring Keepalived service:
+==========================================
+
+# yum -y install  keepalived
+
+Configure Keepalived on both  Haproxy-1 and Haproxy-2
+
+Move the existing config because we will basically be starting from scratch.
+
+# mv /etc/keepalived/keepalived.conf /etc/keepalived/keepalived.conf.bak
+
+Edit the Keepalived config file and make it look something like below:
+
+# nano /etc/keepalived/keepalived.conf
+Edit keepalived.conf as follows on lb0:
+
+vrrp_instance VI_1 {
+        interface eth0
+        state MASTER
+        virtual_router_id 51
+        priority 101
+        virtual_ipaddress {
+                192.168.0.250 dev eth1
+        }
+}
+Edit keepalived.conf as follows on lb1 (note priority set to 100 i.e. backup load balancer):
+
+vrrp_instance VI_1 {
+        interface eth0
+        state MASTER
+        virtual_router_id 51
+        priority 100
+        virtual_ipaddress {
+                192.168.0.250 dev eth1
+        }
+}
+Save and close the file. Finally start keepalived on both Haproxy-1 and Haproxy-2 as follows:
+# /etc/init.d/keepalived start
+
+Make sure and change the priority under the vrrp_instance to 100 on the backup HAProxy server Haproxy-2. Other than that parameter the rest of the keepalived.conf file should be identical on both Haproxy-a and Haproxy-2. 
+
+
+Verify keepAlived:
+==================
+Verify that VIP assigned to eth1:
+# ip addr show eth1
+
+Sample outputs:
+====
+    eth1:  mtu 1500 qdisc pfifo_fast qlen 10000
+    link/ether 00:10:18:10:10:a1 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.0.250 brd 192.168.0.254 scope global eth1
+    inet 192.168.0.1 scope global secondary eth1
+====
+
+ping failover test:
+
+Open desktop terminal and type the following command to ping to VIP:
+# ping 192.168.0.250
+
+Login to Haproxy-1 and halt the server or take down networking:
+# halt
+
+Within seconds VIP should move from Haproxy-1 to Haproxy-2 and you should not see any drops in ping. On lb1 you should get the following in /var/log/messages:
+
+July 21 04:10:07 Haproxy-2 Keepalived_vrrp: VRRP_Instance(VI_1) forcing a new MASTER election
+
+
+SSL implementation on Haproxy Layer:
+====================================
+
+Here its little tricky to implement the same SSL cert on two Haproxy  server which uses keepalived to failover. Please note that my domain_name.com uses the VIP which floats between two Haproxy servers. So, ideally my domain_name.com is using the same ssl cert on two different servers, and it should work 100% when the haproxy-2 takes control from Haproxy-1.
+furhter to that, you can't declare the ssl key, primary cert and root cert directly on Haproxy config file, which allows a single domainname.pem file where you should concatenate all the certs. Lets see how to concatenate the certs which I bought from Digicert SSL provider (digicert.com) 
+
+Creating a .pem with the Entire SSL Certificate:
+
+1. Log into your DigiCert Management Console and download your Intermediate (DigiCertCA.crt), Root (TrustedRoot.crt), and Primary Certificates (your_domain_name.crt).
+
+2. Open a text editor (such as wordpad) and paste the entire body of each certificate into one text file in the following order:
+        The Primary Certificate - your_domain_name.crt
+        The Intermediate Certificate - DigiCertCA.crt
+        The Root Certificate - TrustedRoot.crt
+
+    Make sure to include the beginning and end tags on each certificate. The result should look like this:
+
+    -----BEGIN CERTIFICATE-----
+    (Your Primary SSL certificate: your_domain_name.crt)
+    -----END CERTIFICATE-----
+    -----BEGIN CERTIFICATE-----
+    (Your Intermediate certificate: DigiCertCA.crt)
+    -----END CERTIFICATE-----
+    -----BEGIN CERTIFICATE-----
+    (Your Root certificate: TrustedRoot.crt)
+    -----END CERTIFICATE-----
+
+3. Save the combined file as your_domain_name.pem. The .pem file is now ready to use.
+
+
+
+HAProxy with SSL Termination: 
+============================
+Actually there are two ways to add SSL on Haproxy. 
+1. SSL Termination is the practice of terminating/decrypting an SSL connection at the load balancer, and sending unencrypted connections to the backend servers.
+
+This means the load balancer is responsible for decrypting an SSL connection
+
+
+2. SSL-Pass-Through, the SSL connection is terminated at each proxied server, distributing the CPU load across those servers. However, you lose the ability to add or edit HTTP headers, as the connection is simply routed through the load balancer to the proxied servers.
+
+But most typical use case uses SSL Termination. As stated, we need to have the load balancer handle the SSL connection.
+This means having the SSL Certificate live on the load balancer server.
+
+3. Add the below lines in haproxy.conf on both Haproxy servers.
+
+frontend main_https
+   bind 0.0.0.0:443 ssl crt /etc/haproxy/my_domain_name.pem   no-sslv3
+  default_backend             web
+
+
+4. You need to reload the Haproxy service on both to effect the changes on the domain. 
+
