@@ -148,8 +148,8 @@ Open desktop terminal and type the following command to ping to VIP:
 Login to Haproxy-1 and halt the server or take down networking:
 # halt
 
-Within seconds VIP should move from Haproxy-1 to Haproxy-2 and you should not see any drops in ping. 
-On lb1 you should get the following in /var/log/messages:
+Within a few seconds, VIP should move from Haproxy-1 to Haproxy-2 and you should not see any drops in ping. 
+On Haproxy-2 you should get the following in /var/log/messages:
 
 July 21 04:10:07 Haproxy-2 Keepalived_vrrp: VRRP_Instance(VI_1) forcing a new MASTER election
 
