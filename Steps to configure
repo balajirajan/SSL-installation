@@ -1,24 +1,26 @@
 Setting up of HaProxy +KeepAlived + SSL cert:
-===============================================
+=============================================
 
-Let's imagine a situation where, we want to handle few thousands of incoming QPS in server infrastructre. There are two things in this 1. Receiving the queries 2. Processing and responding back to the queries. Here we are going to discuss only about how to receive that much requests in a secured way and how to build a simple yet scalable highly available load balancer using HAProxy and keepalived.  
+Let's imagine a situation where, we want to handle few thousands of incoming QPS in server infrastructre.
+There are two things in this 1. Receiving the queries 2. Processing and responding back to the queries. 
+Here we are going to discuss only about how to receive that much requests in a secured way and how to build a simple yet scalable highly available load balancer using HAProxy and keepalived.  
+
+Servers Used:
+=============
+haproxy-1 => 192.168.0.100
+haproxy-2 => 192.168.0.200
+VIP => my_domain_name.com => points to 192.168.0.250 
+Web nodes => 192.168.0.1 to 192.168.0.10
 
 Technology Used:
+================
 1.HaProxy
 2.Keepalived for IP failover
 3.VIP
 4.Nginx
 5.SSL Termination
 
-Servers Used:
-haproxy-1 => 192.168.0.100
-haproxy-2 => 192.168.0.200
-VIP => my_domain_name.com => points to 192.168.0.250 
-Web nodes => 192.168.0.1 to 192.168.0.10
-
-
 To avoid a single point of failure with one HAProxy, we have active and passive HAProxy setup and will be made highly available through the use of the VIP (floating IP address) as implemented by keepalived.  Active HaProxy(A) will have an IP address of 192.168.0.100 and Passive HaProxy(B) will have an IP address of 192.168.0.200.
-
 KeepAlived is the service which uses VIP(192.168.0.250) to float between Active and Passive HaProxy.  VIP is configured ob both haproxy servers but initially raised on active Haproxy. If Active failed, then VIP will be floated/moved to Passive HaProxy with the help of KeepAlived service. Once the Active up again, the VIP will be failback to Active. The one has the higher priority number, will always trying to became Active when its in online.
 
 
